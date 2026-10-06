@@ -1,0 +1,1150 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>플래피 버디 (Flappy Birdy)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Jua&display=swap" rel="stylesheet">
+    <style>
+        * {
+            font-family: 'Jua', sans-serif;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        canvas {
+            touch-action: manipulation;
+            image-rendering: -webkit-optimize-contrast;
+            image-rendering: crisp-edges;
+        }
+        .btn-bounce {
+            transition: transform 0.15s ease, background-color 0.15s ease;
+        }
+        .btn-bounce:hover {
+            transform: scale(1.05);
+        }
+        .btn-bounce:active {
+            transform: scale(0.95);
+        }
+        @keyframes float {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-8px); }
+        }
+        .animate-float {
+            animation: float 2.2s ease-in-out infinite;
+        }
+    </style>
+</head>
+<body class="bg-slate-900 min-h-screen flex items-center justify-center p-2 sm:p-4 select-none overflow-hidden">
+
+    <!-- 게임 컨테이너 -->
+    <div class="relative w-full max-w-[420px] bg-sky-200 rounded-3xl shadow-2xl overflow-hidden border-4 border-amber-300 aspect-[9/16] max-h-[92vh] flex flex-col items-center justify-between">
+        
+        <!-- 고화질 게임 캔버스 -->
+        <canvas id="gameCanvas" class="absolute inset-0 w-full h-full z-0 cursor-pointer"></canvas>
+
+        <!-- 상단 헤더 UI -->
+        <div class="relative z-10 w-full p-4 flex justify-between items-center pointer-events-none">
+            <div class="w-10"></div>
+            
+            <!-- 실시간 점수 표시 -->
+            <div id="scoreDisplay" class="hidden text-4xl font-black text-white drop-shadow-[0_4px_4px_rgba(74,53,37,0.6)] tracking-wider">
+                0
+            </div>
+
+            <!-- 최고 점수 뱃지 & 스피커 조절 버튼 -->
+            <div class="flex items-center gap-2 pointer-events-auto">
+                <div class="bg-white/90 text-amber-900 font-bold px-3 py-1.5 rounded-xl shadow border-2 border-amber-300 flex items-center gap-1 text-xs sm:text-sm">
+                    👑 <span id="topScoreText">0</span>
+                </div>
+                <button id="soundBtn" class="bg-white/90 hover:bg-white p-2 rounded-xl shadow border-2 border-amber-300 text-base transition-all btn-bounce active:scale-95" title="소리 켜기/끄기">
+                    🔊
+                </button>
+            </div>
+        </div>
+
+        <!-- 시작 화면 오버레이 -->
+        <div id="startScreen" class="relative z-20 w-full h-full flex flex-col items-center justify-center text-center p-4 bg-white/20 backdrop-blur-[2px] overflow-y-auto">
+            <div class="animate-float mb-2 flex flex-col items-center">
+                <!-- 캐릭터 미리보기 로고 -->
+                <div id="logoContainer" class="w-20 h-20 bg-pink-100 rounded-full border-4 border-[#6C4A7E] flex items-center justify-center shadow-lg relative mb-1 transition-all">
+                    <canvas id="previewCanvas" width="80" height="80"></canvas>
+                </div>
+                <h1 class="text-3xl sm:text-4xl font-black text-white drop-shadow-[0_4px_0_rgba(108,74,126,1)] tracking-wider">
+                    플래피 버디
+                </h1>
+                <p class="text-purple-950 font-bold mt-1 text-xs bg-white/80 px-3 py-0.5 rounded-full shadow-inner border border-purple-200">
+                    ⚡ 쉬는 시간 스피드 매치 ⚡
+                </p>
+            </div>
+
+            <!-- 캐릭터 선택 메뉴 -->
+            <div class="my-1.5 flex flex-col items-center w-full max-w-[300px]">
+                <p class="text-xs font-bold text-amber-950 mb-1 bg-white/80 px-3 py-0.5 rounded-full shadow-sm">🐥 캐릭터 테마 선택</p>
+                <div class="grid grid-cols-4 gap-1 w-full bg-white/80 p-1.5 rounded-2xl shadow border border-amber-200">
+                    <button data-char="baepsae" class="char-btn bg-purple-100 border-2 border-purple-500 text-purple-900 font-bold text-xs py-1.5 rounded-xl transition-all shadow flex flex-col items-center gap-0.5">
+                        <span class="text-base">🐦</span>
+                        <span>뱁새</span>
+                    </button>
+                    <button data-char="chick" class="char-btn bg-amber-50 border-2 border-amber-300 opacity-60 text-amber-900 font-bold text-xs py-1.5 rounded-xl transition-all shadow flex flex-col items-center gap-0.5">
+                        <span class="text-base">🐥</span>
+                        <span>병아리</span>
+                    </button>
+                    <button data-char="bluebird" class="char-btn bg-sky-50 border-2 border-sky-300 opacity-60 text-sky-900 font-bold text-xs py-1.5 rounded-xl transition-all shadow flex flex-col items-center gap-0.5">
+                        <span class="text-base">🦜</span>
+                        <span>파란새</span>
+                    </button>
+                    <button data-char="pinkbird" class="char-btn bg-rose-50 border-2 border-rose-300 opacity-60 text-rose-900 font-bold text-xs py-1.5 rounded-xl transition-all shadow flex flex-col items-center gap-0.5">
+                        <span class="text-base">🦩</span>
+                        <span>핑키</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- 난이도 선택 메뉴 -->
+            <div class="my-1.5 flex flex-col items-center w-full max-w-[300px]">
+                <p class="text-xs font-bold text-amber-950 mb-1 bg-white/80 px-3 py-0.5 rounded-full shadow-sm">🎯 난이도 선택</p>
+                <div class="grid grid-cols-3 gap-1.5 w-full bg-white/80 p-1.5 rounded-2xl shadow border border-amber-200">
+                    <button data-diff="easy" class="diff-btn bg-emerald-500 text-white font-bold text-xs py-2 rounded-xl transition-all shadow border-2 border-emerald-300">🌱 쉬움</button>
+                    <button data-diff="normal" class="diff-btn bg-amber-400 text-amber-950 font-bold text-xs py-2 rounded-xl transition-all shadow border-2 border-amber-300 opacity-60">🐤 보통</button>
+                    <button data-diff="hard" class="diff-btn bg-rose-500 text-white font-bold text-xs py-2 rounded-xl transition-all shadow border-2 border-rose-300 opacity-60">🔥 매운맛</button>
+                </div>
+            </div>
+
+            <div class="bg-white/95 p-3 rounded-2xl shadow-xl border-4 border-amber-300 max-w-[300px] w-full text-center my-1.5">
+                <p class="text-xs sm:text-sm font-bold text-slate-800">화면 클릭 또는 <span class="text-amber-600 font-black">[스페이스바]</span></p>
+                <p class="text-[11px] text-slate-500 mt-0.5">사뿐사뿐 날아올라 기둥을 통과하세요!</p>
+            </div>
+
+            <p class="text-amber-950 font-bold text-xs tracking-wide bg-white/80 px-4 py-1 rounded-xl border border-amber-200 mt-1">
+                👇 터치하여 게임 시작
+            </p>
+        </div>
+
+        <!-- 게임 오버 화면 -->
+        <div id="gameOverScreen" class="hidden relative z-20 w-full h-full flex flex-col items-center justify-center text-center p-6 bg-slate-900/50 backdrop-blur-sm">
+            <div class="bg-white p-5 sm:p-6 rounded-3xl shadow-2xl border-4 border-amber-300 w-full max-w-[310px] flex flex-col items-center">
+                <span class="text-4xl sm:text-5xl mb-1">💥</span>
+                <h2 class="text-2xl sm:text-3xl font-black text-rose-500 mb-0.5 drop-shadow-sm">게임 오버!</h2>
+                <p class="text-slate-400 font-medium text-xs mb-3">한 판 더 도전해볼까요?</p>
+
+                <!-- 점수판 -->
+                <div class="w-full bg-amber-50 p-3.5 rounded-2xl mb-4 space-y-1.5 border border-amber-100">
+                    <div class="flex justify-between items-center text-slate-700 font-bold text-xs sm:text-sm">
+                        <span>획득 점수</span>
+                        <span id="finalScore" class="text-xl sm:text-2xl font-black text-amber-600">0</span>
+                    </div>
+                    <div class="h-[1px] bg-amber-200 w-full"></div>
+                    <div class="flex justify-between items-center text-slate-700 font-bold text-xs sm:text-sm">
+                        <span>최고 기록</span>
+                        <span id="bestScore" class="text-lg sm:text-xl font-black text-emerald-600">0</span>
+                    </div>
+                </div>
+
+                <!-- 게임 오버 버튼 그룹 -->
+                <div class="grid grid-cols-2 gap-2 w-full">
+                    <button id="restartBtn" class="pointer-events-auto bg-amber-400 hover:bg-amber-300 text-amber-950 font-black text-sm py-3 px-3 rounded-2xl shadow-lg border-b-4 border-amber-600 transition-all btn-bounce flex items-center justify-center gap-1">
+                        🔄 다시 하기
+                    </button>
+                    <button id="homeBtn" class="pointer-events-auto bg-slate-200 hover:bg-slate-300 text-slate-800 font-black text-sm py-3 px-3 rounded-2xl shadow-lg border-b-4 border-slate-400 transition-all btn-bounce flex items-center justify-center gap-1">
+                        🏠 처음으로
+                    </button>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        // DOM 요소 참조
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const previewCanvas = document.getElementById('previewCanvas');
+        const previewCtx = previewCanvas ? previewCanvas.getContext('2d') : null;
+
+        const scoreDisplay = document.getElementById('scoreDisplay');
+        const topScoreText = document.getElementById('topScoreText');
+        const startScreen = document.getElementById('startScreen');
+        const gameOverScreen = document.getElementById('gameOverScreen');
+        const finalScore = document.getElementById('finalScore');
+        const bestScore = document.getElementById('bestScore');
+        const restartBtn = document.getElementById('restartBtn');
+        const homeBtn = document.getElementById('homeBtn');
+        const soundBtn = document.getElementById('soundBtn');
+
+        // Web Audio API 사운드 시스템
+        const sounds = {
+            ctx: null,
+            muted: false,
+            init() {
+                if (!this.ctx) {
+                    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+                    if (AudioCtx) this.ctx = new AudioCtx();
+                }
+                if (this.ctx && this.ctx.state === 'suspended') {
+                    this.ctx.resume();
+                }
+            },
+            playTone(freq, type, duration, startVol = 0.15, endVol = 0.001) {
+                if (this.muted || !this.ctx) return;
+                try {
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    osc.type = type;
+                    osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
+                    gain.gain.setValueAtTime(startVol, this.ctx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(Math.max(endVol, 0.0001), this.ctx.currentTime + duration);
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+                    osc.start();
+                    osc.stop(this.ctx.currentTime + duration);
+                } catch(e) {}
+            },
+            playJump() {
+                if (this.muted || !this.ctx) return;
+                try {
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(280, this.ctx.currentTime);
+                    osc.frequency.exponentialRampToValueAtTime(540, this.ctx.currentTime + 0.12);
+                    gain.gain.setValueAtTime(0.18, this.ctx.currentTime);
+                    gain.gain.linearRampToValueAtTime(0.01, this.ctx.currentTime + 0.12);
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+                    osc.start();
+                    osc.stop(this.ctx.currentTime + 0.12);
+                } catch(e) {}
+            },
+            playScore() {
+                if (this.muted || !this.ctx) return;
+                try {
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    osc.type = 'triangle';
+                    osc.frequency.setValueAtTime(523.25, this.ctx.currentTime);
+                    osc.frequency.setValueAtTime(659.25, this.ctx.currentTime + 0.08);
+                    gain.gain.setValueAtTime(0.2, this.ctx.currentTime);
+                    gain.gain.linearRampToValueAtTime(0.01, this.ctx.currentTime + 0.2);
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+                    osc.start();
+                    osc.stop(this.ctx.currentTime + 0.2);
+                } catch(e) {}
+            },
+            playHit() {
+                if (this.muted || !this.ctx) return;
+                try {
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    osc.type = 'sawtooth';
+                    osc.frequency.setValueAtTime(160, this.ctx.currentTime);
+                    osc.frequency.exponentialRampToValueAtTime(40, this.ctx.currentTime + 0.25);
+                    gain.gain.setValueAtTime(0.25, this.ctx.currentTime);
+                    gain.gain.linearRampToValueAtTime(0.01, this.ctx.currentTime + 0.25);
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+                    osc.start();
+                    osc.stop(this.ctx.currentTime + 0.25);
+                } catch(e) {}
+            },
+            playWarning() {
+                if (this.muted || !this.ctx) return;
+                try {
+                    for (let i = 0; i < 2; i++) {
+                        setTimeout(() => {
+                            this.playTone(880, 'square', 0.1, 0.18, 0.001);
+                        }, i * 150);
+                    }
+                } catch(e) {}
+            }
+        };
+
+        // 난이도 설정 (중력을 낮춰 가볍고 사뿐사뿐 부드럽게 컨트롤)
+        const DIFFICULTY_SETTINGS = {
+            easy:   { gravity: 0.18, jumpStrength: -4.5, pipeGap: 195, pipeSpeed: 1.8, spawnTimerMax: 100 },
+            normal: { gravity: 0.21, jumpStrength: -4.8, pipeGap: 180, pipeSpeed: 2.1, spawnTimerMax: 90 },
+            hard:   { gravity: 0.25, jumpStrength: -5.4, pipeGap: 165, pipeSpeed: 2.5, spawnTimerMax: 80 }
+        };
+        let currentDifficulty = 'easy';
+        let currentCharacter = 'baepsae'; // 기본 캐릭터: 뱁새
+
+        // 캐릭터별 디자인 파라미터
+        const CHAR_DESIGNS = {
+            baepsae: {
+                name: '뱁새',
+                outline: '#6D4B7D',
+                body: '#FFFFFF',
+                cheek: 'rgba(255, 175, 205, 0.85)',
+                ruffle: '#FFC6DC',
+                eye: '#6D4B7D',
+                beak: '#6D4B7D'
+            },
+            chick: {
+                name: '병아리',
+                outline: '#78350F',
+                body: '#FDE047',
+                cheek: 'rgba(248, 113, 113, 0.85)',
+                ruffle: '#FEF08A',
+                eye: '#451A03',
+                beak: '#F97316'
+            },
+            bluebird: {
+                name: '파란새',
+                outline: '#1E3A8A',
+                body: '#93C5FD',
+                cheek: 'rgba(244, 114, 182, 0.85)',
+                ruffle: '#E0F2FE',
+                eye: '#1E3A8A',
+                beak: '#F59E0B'
+            },
+            pinkbird: {
+                name: '핑키',
+                outline: '#881337',
+                body: '#F472B6',
+                cheek: 'rgba(251, 113, 133, 0.85)',
+                ruffle: '#FFE4E6',
+                eye: '#4C0519',
+                beak: '#FB923C'
+            }
+        };
+
+        let hardSpeedBonus = 0;
+        let warningTimer = 0;
+        let speedUpTriggeredForScore = {};
+
+        let gameState = 'START';
+        let score = 0;
+        let currentSkyScore = 0;
+        let highScore = parseInt(localStorage.getItem('flappy_bird_hi_score') || '0');
+        topScoreText.textContent = highScore;
+
+        let dpr = 1;
+        let logicalWidth = 360;
+        let logicalHeight = 640;
+
+        function resizeCanvas() {
+            const rect = canvas.getBoundingClientRect();
+            // 화면 해상도 선명도를 극대화하기 위해 최소 dpr 2 이상 보장
+            dpr = Math.max(window.devicePixelRatio || 1, 2);
+            logicalWidth = rect.width;
+            logicalHeight = rect.height;
+
+            canvas.width = Math.round(rect.width * dpr);
+            canvas.height = Math.round(rect.height * dpr);
+            
+            ctx.imageSmoothingEnabled = false;
+        }
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        const bird = {
+            x: 0,
+            y: 0,
+            radius: 19, // 선명하게 다듬어진 딱 좋은 선명한 캐릭터 크기
+            velocity: 0,
+            gravity: 0.18,
+            jumpStrength: -4.5,
+            rotation: 0,
+            wingAngle: 0,
+
+            reset(height) {
+                this.x = logicalWidth * 0.28;
+                this.y = height * 0.45;
+                this.velocity = 0;
+                this.rotation = 0;
+                
+                const setting = DIFFICULTY_SETTINGS[currentDifficulty];
+                this.gravity = setting.gravity;
+                this.jumpStrength = setting.jumpStrength;
+            },
+
+            flap() {
+                this.velocity = this.jumpStrength;
+                sounds.playJump();
+                createJumpParticles(this.x, this.y);
+            },
+
+            update() {
+                this.velocity += this.gravity;
+                this.y += this.velocity;
+                this.rotation = Math.min(Math.PI / 4, Math.max(-Math.PI / 6, this.velocity * 0.06));
+                this.wingAngle += 0.22;
+            },
+
+            draw(targetCtx = ctx, drawX = this.x, drawY = this.y, customScale = 1) {
+                const charData = CHAR_DESIGNS[currentCharacter] || CHAR_DESIGNS.baepsae;
+
+                targetCtx.save();
+                targetCtx.translate(drawX, drawY);
+                if (targetCtx === ctx) {
+                    targetCtx.rotate(this.rotation);
+                }
+                if (customScale !== 1) {
+                    targetCtx.scale(customScale, customScale);
+                }
+
+                // 1. 밑 그림자
+                targetCtx.beginPath();
+                targetCtx.ellipse(0, this.radius + 3, this.radius * 0.75, 4, 0, 0, Math.PI * 2);
+                targetCtx.fillStyle = 'rgba(0, 0, 0, 0.12)';
+                targetCtx.fill();
+
+                // 2. 밑부분 몽실몽실 핑크 구름 깃털 받침
+                targetCtx.beginPath();
+                targetCtx.ellipse(0, 11, 17, 7, 0, 0, Math.PI * 2);
+                targetCtx.fillStyle = charData.ruffle;
+                targetCtx.fill();
+                targetCtx.strokeStyle = charData.outline;
+                targetCtx.lineWidth = 2.8;
+                targetCtx.stroke();
+
+                // 3. 동글동글 오동통 몸통
+                targetCtx.beginPath();
+                targetCtx.arc(0, 0, this.radius, 0, Math.PI * 2);
+                targetCtx.fillStyle = charData.body;
+                targetCtx.fill();
+                targetCtx.strokeStyle = charData.outline;
+                targetCtx.lineWidth = 3.2;
+                targetCtx.stroke();
+
+                // 4. 날개
+                const wingY = Math.sin(this.wingAngle) * 2;
+                targetCtx.beginPath();
+                targetCtx.ellipse(-10, 2 + wingY, 7, 5, Math.PI / 5, 0, Math.PI * 2);
+                targetCtx.fillStyle = charData.body;
+                targetCtx.fill();
+                targetCtx.strokeStyle = charData.outline;
+                targetCtx.lineWidth = 2.5;
+                targetCtx.stroke();
+
+                // 5. 볼터치
+                targetCtx.fillStyle = charData.cheek;
+                targetCtx.beginPath();
+                targetCtx.arc(-8, 3, 4.2, 0, Math.PI * 2);
+                targetCtx.arc(8, 3, 4.2, 0, Math.PI * 2);
+                targetCtx.fill();
+
+                // 6. 점눈
+                targetCtx.fillStyle = charData.eye;
+                targetCtx.beginPath();
+                targetCtx.arc(-6, -2, 2.2, 0, Math.PI * 2);
+                targetCtx.arc(6, -2, 2.2, 0, Math.PI * 2);
+                targetCtx.fill();
+
+                // 7. 부리
+                targetCtx.beginPath();
+                targetCtx.moveTo(-2, 1);
+                targetCtx.lineTo(2, 1);
+                targetCtx.lineTo(0, 4);
+                targetCtx.closePath();
+                targetCtx.fillStyle = charData.beak;
+                targetCtx.fill();
+
+                targetCtx.restore();
+            }
+        };
+
+        function drawPreview() {
+            if (!previewCtx) return;
+            previewCtx.clearRect(0, 0, previewCanvas.width, previewCanvas.height);
+            bird.draw(previewCtx, 40, 40, 1.25);
+        }
+
+        let pipes = [];
+        const pipeWidth = 58;
+        let pipeSpawnTimer = 0;
+
+        function createPipe() {
+            const setting = DIFFICULTY_SETTINGS[currentDifficulty];
+            const currentGap = setting.pipeGap;
+            const groundHeight = 55;
+            const availableHeight = logicalHeight - groundHeight - currentGap - 90;
+            const topHeight = Math.floor(Math.random() * availableHeight) + 45;
+
+            pipes.push({
+                x: logicalWidth,
+                top: topHeight,
+                bottom: logicalHeight - groundHeight - (topHeight + currentGap),
+                passed: false
+            });
+        }
+
+        let clouds = [];
+        let stars = [];
+        let butterflies = [];
+        let lotusPads = [];
+
+        function initCloudsAndStars() {
+            clouds = [];
+            for (let i = 0; i < 4; i++) {
+                clouds.push({
+                    x: Math.random() * logicalWidth,
+                    y: Math.random() * (logicalHeight * 0.35),
+                    size: Math.random() * 18 + 22,
+                    speed: Math.random() * 0.3 + 0.15
+                });
+            }
+
+            stars = [];
+            for (let i = 0; i < 24; i++) {
+                stars.push({
+                    x: Math.random(),
+                    y: Math.random() * 0.45,
+                    radius: Math.random() * 1.5 + 0.8,
+                    seed: Math.random() * 10
+                });
+            }
+
+            // 병아리 테마 나비
+            butterflies = [];
+            for (let i = 0; i < 3; i++) {
+                butterflies.push({
+                    x: Math.random() * logicalWidth,
+                    y: logicalHeight * 0.6 + Math.random() * 80,
+                    size: 5 + Math.random() * 3,
+                    wing: 0,
+                    speed: 0.5 + Math.random() * 0.4,
+                    color: i % 2 === 0 ? '#FDE047' : '#F472B6'
+                });
+            }
+
+            // 핑키 테마 연꽃잎
+            lotusPads = [];
+            for (let i = 0; i < 4; i++) {
+                lotusPads.push({
+                    x: (i + 0.3) * (logicalWidth / 3.5),
+                    size: 14 + Math.random() * 6,
+                    hasFlower: i % 2 === 0
+                });
+            }
+        }
+
+        function lerp(a, b, t) {
+            return a + (b - a) * t;
+        }
+
+        function lerpColor(c1, c2, t) {
+            return [
+                Math.round(lerp(c1[0], c2[0], t)),
+                Math.round(lerp(c1[1], c2[1], t)),
+                Math.round(lerp(c1[2], c2[2], t))
+            ];
+        }
+
+        // 24시간 색상 전환 계산 함수
+        function getSkyState(scoreVal) {
+            const cycle = (scoreVal % 20);
+            const stage = Math.floor(cycle / 5);
+            const progress = (cycle % 5) / 5;
+
+            const palettes = [
+                // 0: 아침
+                { 
+                    top: [135, 206, 235], mid: [180, 225, 250], bottom: [225, 242, 254], 
+                    sunAlpha: 1, moonAlpha: 0, starAlpha: 0, 
+                    sunX: 0.75, sunY: 0.18 
+                },
+                // 1: 은은한 파스텔 노을
+                { 
+                    top: [175, 130, 170], mid: [225, 155, 145], bottom: [245, 195, 150], 
+                    sunAlpha: 0.85, moonAlpha: 0, starAlpha: 0.1, 
+                    sunX: 0.82, sunY: 0.62 
+                },
+                // 2: 밤
+                { 
+                    top: [22, 28, 50], mid: [35, 45, 75], bottom: [50, 65, 100], 
+                    sunAlpha: 0, moonAlpha: 1, starAlpha: 1, 
+                    sunX: 0.90, sunY: 0.85, moonX: 0.25, moonY: 0.22 
+                },
+                // 3: 새벽
+                { 
+                    top: [70, 60, 110], mid: [125, 110, 165], bottom: [220, 175, 160], 
+                    sunAlpha: 0.2, moonAlpha: 0.2, starAlpha: 0.2, 
+                    sunX: 0.18, sunY: 0.55, moonX: 0.10, moonY: 0.40 
+                }
+            ];
+
+            const cur = palettes[stage];
+            const next = palettes[(stage + 1) % 4];
+
+            const top = lerpColor(cur.top, next.top, progress);
+            const mid = lerpColor(cur.mid, next.mid, progress);
+            const bottom = lerpColor(cur.bottom, next.bottom, progress);
+
+            const sunAlpha = lerp(cur.sunAlpha, next.sunAlpha, progress);
+            const moonAlpha = lerp(cur.moonAlpha, next.moonAlpha, progress);
+            const starAlpha = lerp(cur.starAlpha, next.starAlpha, progress);
+
+            const sunX = lerp(cur.sunX, next.sunX, progress);
+            const sunY = lerp(cur.sunY, next.sunY, progress);
+
+            const moonX = lerp(cur.moonX || 0.25, next.moonX || 0.25, progress);
+            const moonY = lerp(cur.moonY || 0.22, next.moonY || 0.22, progress);
+
+            return { top, mid, bottom, sunAlpha, moonAlpha, starAlpha, sunX, sunY, moonX, moonY };
+        }
+
+        let particles = [];
+        function createJumpParticles(x, y) {
+            for (let i = 0; i < 4; i++) {
+                particles.push({
+                    x: x - 8,
+                    y: y + 8,
+                    vx: (Math.random() - 0.5) * 2,
+                    vy: Math.random() * 2 + 1,
+                    radius: Math.random() * 3 + 2,
+                    color: 'rgba(255, 255, 255, 0.8)',
+                    life: 18
+                });
+            }
+        }
+
+        function createScoreParticles(x, y) {
+            for (let i = 0; i < 10; i++) {
+                particles.push({
+                    x: x,
+                    y: y,
+                    vx: (Math.random() - 0.5) * 5,
+                    vy: (Math.random() - 0.5) * 5,
+                    radius: Math.random() * 4 + 2,
+                    color: ['#FFB7D5', '#93C5FD', '#6EE7B7', '#FDE047'][Math.floor(Math.random() * 4)],
+                    life: 25
+                });
+            }
+        }
+
+        let groundOffset = 0;
+
+        function drawBackground() {
+            currentSkyScore = lerp(currentSkyScore, score, 0.04);
+            const sky = getSkyState(currentSkyScore);
+
+            // 1. 하늘 기본 시간대 그라데이션
+            const skyGrad = ctx.createLinearGradient(0, 0, 0, logicalHeight);
+            skyGrad.addColorStop(0, `rgb(${sky.top.join(',')})`);
+            skyGrad.addColorStop(0.65, `rgb(${sky.mid.join(',')})`);
+            skyGrad.addColorStop(1, `rgb(${sky.bottom.join(',')})`);
+            ctx.fillStyle = skyGrad;
+            ctx.fillRect(0, 0, logicalWidth, logicalHeight);
+
+            // 2. 별
+            if (sky.starAlpha > 0.01) {
+                ctx.save();
+                stars.forEach(st => {
+                    const twinkle = (Math.sin(Date.now() * 0.004 + st.seed) + 1) / 2;
+                    ctx.globalAlpha = sky.starAlpha * (0.3 + 0.7 * twinkle);
+                    ctx.fillStyle = '#FFFFFF';
+                    ctx.beginPath();
+                    ctx.arc(st.x * logicalWidth, st.y * logicalHeight, st.radius, 0, Math.PI * 2);
+                    ctx.fill();
+                });
+                ctx.restore();
+            }
+
+            // 3. 해 (밝은 연노란색)
+            if (sky.sunAlpha > 0.01) {
+                ctx.save();
+                ctx.globalAlpha = sky.sunAlpha;
+                const sx = logicalWidth * sky.sunX;
+                const sy = logicalHeight * sky.sunY;
+
+                ctx.beginPath();
+                ctx.arc(sx, sy, 22, 0, Math.PI * 2);
+                ctx.fillStyle = '#FFFFE0';
+                ctx.fill();
+                ctx.restore();
+            }
+
+            // 4. 달
+            if (sky.moonAlpha > 0.01) {
+                ctx.save();
+                ctx.globalAlpha = sky.moonAlpha;
+                const mx = logicalWidth * sky.moonX;
+                const my = logicalHeight * sky.moonY;
+
+                ctx.beginPath();
+                ctx.arc(mx, my, 16, 0, Math.PI * 2);
+                ctx.fillStyle = '#FEF08A';
+                ctx.fill();
+
+                ctx.beginPath();
+                ctx.arc(mx + 5, my - 3, 13, 0, Math.PI * 2);
+                ctx.fillStyle = `rgb(${sky.top.join(',')})`;
+                ctx.fill();
+                ctx.restore();
+            }
+
+            // --- 캐릭터별 배경 테마 오버레이 ---
+            const groundY = logicalHeight - 55;
+
+            if (currentCharacter === 'baepsae') {
+                // 🐦 뱁새: 기본 포근한 언덕 테마
+                ctx.fillStyle = sky.starAlpha > 0.6 ? '#166534' : '#86EFAC';
+                ctx.beginPath();
+                ctx.ellipse(logicalWidth * 0.2, groundY + 10, 140, 45, 0, 0, Math.PI * 2);
+                ctx.ellipse(logicalWidth * 0.8, groundY + 20, 180, 55, 0, 0, Math.PI * 2);
+                ctx.fill();
+
+            } else if (currentCharacter === 'chick') {
+                // 🐥 병아리: 싱그러운 꽃밭 초원 테마
+                ctx.fillStyle = sky.starAlpha > 0.6 ? '#15803D' : '#4ADE80';
+                ctx.beginPath();
+                ctx.ellipse(logicalWidth * 0.25, groundY + 5, 150, 40, 0, 0, Math.PI * 2);
+                ctx.ellipse(logicalWidth * 0.75, groundY + 15, 170, 50, 0, 0, Math.PI * 2);
+                ctx.fill();
+
+                // 풀밭 위에 피어난 아기자기한 꽃 연출
+                const flowerColors = ['#FF73A3', '#FDE047', '#FFFFFF', '#A7F3D0'];
+                for (let i = 0; i < 7; i++) {
+                    const fx = (i * 55 + 20) % logicalWidth;
+                    const fy = groundY - 8 + (i % 3) * 3;
+                    ctx.fillStyle = flowerColors[i % flowerColors.length];
+                    ctx.beginPath();
+                    ctx.arc(fx, fy, 4, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.fillStyle = '#F59E0B';
+                    ctx.beginPath();
+                    ctx.arc(fx, fy, 1.8, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+
+                // 하늘거리는 나비
+                butterflies.forEach(bf => {
+                    bf.wing += 0.2;
+                    if (gameState === 'PLAYING') bf.x -= bf.speed;
+                    if (bf.x < -20) bf.x = logicalWidth + 20;
+
+                    ctx.save();
+                    ctx.translate(bf.x, bf.y);
+                    ctx.fillStyle = bf.color;
+                    const scaleX = Math.sin(bf.wing);
+                    ctx.beginPath();
+                    ctx.ellipse(-3 * scaleX, 0, 4 * Math.abs(scaleX), 3, 0, 0, Math.PI * 2);
+                    ctx.ellipse(3 * scaleX, 0, 4 * Math.abs(scaleX), 3, 0, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.restore();
+                });
+
+            } else if (currentCharacter === 'bluebird') {
+                // 🦜 파란새: 시원한 수평선 바다 테마
+                // 멀리 보이는 섬
+                ctx.fillStyle = sky.starAlpha > 0.6 ? '#1E293B' : '#64748B';
+                ctx.beginPath();
+                ctx.ellipse(logicalWidth * 0.7, groundY - 15, 50, 18, 0, 0, Math.PI * 2);
+                ctx.fill();
+
+                // 출렁이는 바닷물층
+                const seaGrad = ctx.createLinearGradient(0, groundY - 40, 0, groundY);
+                seaGrad.addColorStop(0, sky.starAlpha > 0.6 ? '#0F172A' : '#38BDF8');
+                seaGrad.addColorStop(1, sky.starAlpha > 0.6 ? '#1E3A8A' : '#0284C7');
+                ctx.fillStyle = seaGrad;
+
+                ctx.beginPath();
+                ctx.moveTo(0, groundY + 20);
+                for (let x = 0; x <= logicalWidth; x += 10) {
+                    const waveY = Math.sin((x + Date.now() * 0.05) * 0.04) * 4;
+                    ctx.lineTo(x, groundY - 35 + waveY);
+                }
+                ctx.lineTo(logicalWidth, groundY + 20);
+                ctx.closePath();
+                ctx.fill();
+
+                // 바다 물결 반짝임
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+                for (let i = 0; i < 4; i++) {
+                    const sparkX = ((Date.now() * 0.03 + i * 90) % logicalWidth);
+                    ctx.fillRect(sparkX, groundY - 28 + (i % 2) * 8, 12, 2);
+                }
+
+            } else if (currentCharacter === 'pinkbird') {
+                // 🦩 핑키: 감성적인 잔잔한 연분홍 호수 테마
+                const lakeY = groundY - 30;
+                ctx.fillStyle = sky.starAlpha > 0.6 ? '#31102F' : '#F472B6';
+                ctx.globalAlpha = 0.4;
+                ctx.fillRect(0, lakeY, logicalWidth, 35);
+                ctx.globalAlpha = 1.0;
+
+                // 수련(연꽃) 잎 및 꽃
+                lotusPads.forEach(lp => {
+                    ctx.fillStyle = '#10B981';
+                    ctx.beginPath();
+                    ctx.ellipse(lp.x, lakeY + 15, lp.size, lp.size * 0.4, 0, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    if (lp.hasFlower) {
+                        ctx.fillStyle = '#FB7185';
+                        ctx.beginPath();
+                        ctx.arc(lp.x, lakeY + 12, 4, 0, Math.PI * 2);
+                        ctx.fill();
+                        ctx.fillStyle = '#FFFFFF';
+                        ctx.beginPath();
+                        ctx.arc(lp.x, lakeY + 12, 1.8, 0, Math.PI * 2);
+                        ctx.fill();
+                    }
+                });
+
+                // 호수 주변 바람에 흔들리는 갈대
+                ctx.strokeStyle = '#059669';
+                ctx.lineWidth = 2;
+                for (let i = 0; i < 5; i++) {
+                    const reedX = i * 85 + 15;
+                    const sway = Math.sin(Date.now() * 0.003 + i) * 3;
+                    ctx.beginPath();
+                    ctx.moveTo(reedX, groundY + 5);
+                    ctx.quadraticCurveTo(reedX + sway, lakeY + 10, reedX + sway * 1.5, lakeY - 5);
+                    ctx.stroke();
+
+                    ctx.fillStyle = '#78350F';
+                    ctx.fillRect(reedX + sway * 1.5 - 2, lakeY - 12, 4, 8);
+                }
+            }
+
+            // 공통 파스텔 구름
+            ctx.fillStyle = sky.starAlpha > 0.6 ? 'rgba(203, 213, 225, 0.35)' : 'rgba(255, 255, 255, 0.85)';
+            clouds.forEach(c => {
+                ctx.beginPath();
+                ctx.arc(c.x, c.y, c.size, 0, Math.PI * 2);
+                ctx.arc(c.x + c.size * 0.6, c.y - c.size * 0.2, c.size * 0.7, 0, Math.PI * 2);
+                ctx.arc(c.x - c.size * 0.6, c.y, c.size * 0.6, 0, Math.PI * 2);
+                ctx.fill();
+
+                if (gameState === 'PLAYING') {
+                    c.x -= c.speed;
+                    if (c.x < -c.size * 2) c.x = logicalWidth + c.size * 2;
+                }
+            });
+        }
+
+        function drawPipes() {
+            pipes.forEach(p => {
+                const pipeGrad = ctx.createLinearGradient(p.x, 0, p.x + pipeWidth, 0);
+                pipeGrad.addColorStop(0, '#22C55E');
+                pipeGrad.addColorStop(0.3, '#4ADE80');
+                pipeGrad.addColorStop(0.8, '#16A34A');
+                pipeGrad.addColorStop(1, '#15803D');
+
+                ctx.fillStyle = pipeGrad;
+                ctx.strokeStyle = '#14532D';
+                ctx.lineWidth = 3;
+
+                // 위쪽 기둥
+                ctx.fillRect(p.x, 0, pipeWidth, p.top);
+                ctx.strokeRect(p.x, 0, pipeWidth, p.top);
+                ctx.fillRect(p.x - 4, p.top - 22, pipeWidth + 8, 22);
+                ctx.strokeRect(p.x - 4, p.top - 22, pipeWidth + 8, 22);
+
+                // 아래쪽 기둥
+                const bottomY = logicalHeight - p.bottom;
+                ctx.fillRect(p.x, bottomY, pipeWidth, p.bottom);
+                ctx.strokeRect(p.x, bottomY, pipeWidth, p.bottom);
+                ctx.fillRect(p.x - 4, bottomY, pipeWidth + 8, 22);
+                ctx.strokeRect(p.x - 4, bottomY, pipeWidth + 8, 22);
+            });
+        }
+
+        function drawGround() {
+            const groundHeight = 55;
+            const groundY = logicalHeight - groundHeight;
+
+            // 캐릭터별 바닥 색상 조정
+            if (currentCharacter === 'bluebird') {
+                ctx.fillStyle = '#FDE047'; // 모래사장 바닥
+            } else if (currentCharacter === 'pinkbird') {
+                ctx.fillStyle = '#6EE7B7'; // 수변 바닥
+            } else {
+                ctx.fillStyle = '#4ADE80'; // 잔디 바닥
+            }
+            ctx.fillRect(0, groundY, logicalWidth, 12);
+
+            ctx.fillStyle = currentCharacter === 'bluebird' ? '#CA8A04' : '#EAB308';
+            ctx.fillRect(0, groundY + 12, logicalWidth, groundHeight - 12);
+
+            ctx.strokeStyle = currentCharacter === 'bluebird' ? '#854D0E' : '#CA8A04';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            
+            const baseSpeed = DIFFICULTY_SETTINGS[currentDifficulty].pipeSpeed;
+            const currentSpeed = currentDifficulty === 'hard' ? baseSpeed + hardSpeedBonus : baseSpeed;
+
+            for (let x = -20 + (groundOffset % 20); x < logicalWidth + 20; x += 20) {
+                ctx.moveTo(x, groundY + 12);
+                ctx.lineTo(x - 10, logicalHeight);
+            }
+            ctx.stroke();
+
+            ctx.strokeStyle = '#15803D';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.moveTo(0, groundY);
+            ctx.lineTo(logicalWidth, groundY);
+            ctx.stroke();
+
+            if (gameState === 'PLAYING') {
+                groundOffset -= currentSpeed;
+            }
+        }
+
+        function drawParticles() {
+            particles.forEach((pt, index) => {
+                ctx.beginPath();
+                ctx.arc(pt.x, pt.y, pt.radius, 0, Math.PI * 2);
+                ctx.fillStyle = pt.color;
+                ctx.fill();
+
+                pt.x += pt.vx;
+                pt.y += pt.vy;
+                pt.life--;
+
+                if (pt.life <= 0) particles.splice(index, 1);
+            });
+        }
+
+        function checkCollisions() {
+            const groundY = logicalHeight - 55;
+
+            if (bird.y + bird.radius - 2 >= groundY || bird.y - bird.radius + 2 <= 0) {
+                triggerGameOver();
+                return;
+            }
+
+            pipes.forEach(p => {
+                const birdLeft = bird.x - bird.radius + 4;
+                const birdRight = bird.x + bird.radius - 4;
+                const birdTop = bird.y - bird.radius + 4;
+                const birdBottom = bird.y + bird.radius - 4;
+
+                const pipeLeft = p.x;
+                const pipeRight = p.x + pipeWidth;
+                const topPipeBottom = p.top;
+                const bottomPipeTop = logicalHeight - p.bottom;
+
+                if (birdRight > pipeLeft && birdLeft < pipeRight) {
+                    if (birdTop < topPipeBottom || birdBottom > bottomPipeTop) {
+                        triggerGameOver();
+                    }
+                }
+            });
+        }
+
+        function updatePipes() {
+            const setting = DIFFICULTY_SETTINGS[currentDifficulty];
+            const currentSpeed = currentDifficulty === 'hard' ? setting.pipeSpeed + hardSpeedBonus : setting.pipeSpeed;
+
+            pipeSpawnTimer++;
+            if (pipeSpawnTimer > setting.spawnTimerMax) {
+                createPipe();
+                pipeSpawnTimer = 0;
+            }
+
+            pipes.forEach((p, index) => {
+                p.x -= currentSpeed;
+
+                if (!p.passed && p.x + pipeWidth < bird.x) {
+                    p.passed = true;
+                    score++;
+                    scoreDisplay.textContent = score;
+                    sounds.playScore();
+                    createScoreParticles(bird.x, bird.y);
+
+                    // 매운맛 난이도 속도증가 이벤트 (6점, 16점, 26점...)
+                    if (currentDifficulty === 'hard' && score >= 6 && (score - 6) % 10 === 0 && !speedUpTriggeredForScore[score]) {
+                        speedUpTriggeredForScore[score] = true;
+                        warningTimer = 110;
+                        sounds.playWarning();
+                    }
+                }
+
+                if (p.x < -pipeWidth - 20) {
+                    pipes.splice(index, 1);
+                }
+            });
+        }
+
+        function triggerGameOver() {
+            gameState = 'GAMEOVER';
+            sounds.playHit();
+
+            if (score > highScore) {
+                highScore = score;
+                localStorage.setItem('flappy_bird_hi_score', highScore);
+                topScoreText.textContent = highScore;
+            }
+
+            finalScore.textContent = score;
+            bestScore.textContent = highScore;
+
+            scoreDisplay.classList.add('hidden');
+            gameOverScreen.classList.remove('hidden');
+        }
+
+        function resetGame() {
+            score = 0;
+            currentSkyScore = 0;
+            pipes = [];
+            particles = [];
+            pipeSpawnTimer = 0;
+            hardSpeedBonus = 0;
+            warningTimer = 0;
+            speedUpTriggeredForScore = {};
+            scoreDisplay.textContent = '0';
+            bird.reset(logicalHeight);
+        }
+
+        function startGame() {
+            sounds.init();
+            resetGame();
+            gameState = 'PLAYING';
+            startScreen.classList.add('hidden');
+            gameOverScreen.classList.add('hidden');
+            scoreDisplay.classList.remove('hidden');
+            bird.flap();
+        }
+
+        function showStartScreen() {
+            gameState = 'START';
+            gameOverScreen.classList.add('hidden');
+            startScreen.classList.remove('hidden');
+            scoreDisplay.classList.add('hidden');
+            drawPreview();
+        }
+
+        function gameLoop() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // 고화질 DPR 스케일링 적용
+            ctx.save();
+            ctx.scale(dpr, dpr);
+
+            drawBackground();
+
+            if (gameState === 'START') {
+                bird.y = logicalHeight * 0.45 + Math.sin(Date.now() * 0.005) * 6;
+                bird.wingAngle += 0.1;
+                bird.draw();
+            } else if (gameState === 'PLAYING') {
+                bird.update();
+                updatePipes();
+                checkCollisions();
+
+                drawPipes();
+                bird.draw();
+                drawParticles();
+
+                // 매운맛 속도증가 경고 이벤트
+                if (warningTimer > 0) {
+                    warningTimer--;
+
+                    const flash = (Math.floor(warningTimer / 8) % 2 === 0);
+                    if (flash) {
+                        ctx.fillStyle = 'rgba(239, 68, 68, 0.2)';
+                        ctx.fillRect(0, 0, logicalWidth, logicalHeight);
+                    }
+
+                    ctx.save();
+                    ctx.fillStyle = '#EF4444';
+                    ctx.strokeStyle = '#FFFFFF';
+                    ctx.lineWidth = 4;
+                    ctx.font = '900 24px Jua, sans-serif';
+                    ctx.textAlign = 'center';
+                    ctx.strokeText('🚨 바쁘다 바빠! 🚨', logicalWidth / 2, 75);
+                    ctx.fillText('🚨 바쁘다 바빠! 🚨', logicalWidth / 2, 75);
+                    ctx.restore();
+
+                    if (warningTimer === 0) {
+                        hardSpeedBonus += 0.45;
+                    }
+                }
+
+            } else if (gameState === 'GAMEOVER') {
+                if (bird.y + bird.radius < logicalHeight - 55) {
+                    bird.y += 8;
+                    bird.rotation = Math.PI / 2;
+                }
+                drawPipes();
+                bird.draw();
+                drawParticles();
+            }
+
+            drawGround();
+
+            ctx.restore();
+
+            requestAnimationFrame(gameLoop);
+        }
+
+        function handleInput(e) {
+            if (e.target.closest('button')) return;
+
+            if (gameState === 'START') {
+                startGame();
+            } else if (gameState === 'PLAYING') {
+                bird.flap();
+            }
+        }
+
+        // 난이도 버튼 이벤트
+        document.querySelectorAll('.diff-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                document.querySelectorAll('.diff-btn').forEach(b => b.classList.add('opacity-60'));
+                btn.classList.remove('opacity-60');
+                currentDifficulty = btn.getAttribute('data-diff');
+            });
+        });
+
+        // 캐릭터 선택 버튼 이벤트
+        document.querySelectorAll('.char-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                document.querySelectorAll('.char-btn').forEach(b => b.classList.add('opacity-60'));
+                btn.classList.remove('opacity-60');
+                currentCharacter = btn.getAttribute('data-char');
+                drawPreview();
+            });
+        });
+
+        window.addEventListener('mousedown', handleInput);
+        window.addEventListener('touchstart', (e) => {
+            handleInput(e);
+        }, { passive: true });
+
+        window.addEventListener('keydown', (e) => {
+            if (e.code === 'Space') {
+                e.preventDefault();
+                if (gameState === 'START') {
+                    startGame();
+                } else if (gameState === 'PLAYING') {
+                    bird.flap();
+                } else if (gameState === 'GAMEOVER') {
+                    startGame();
+                }
+            }
+        });
+
+        // 다시 하기 버튼
+        restartBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            startGame();
+        });
+
+        // 처음으로 버튼
+        homeBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            showStartScreen();
+        });
+
+        soundBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            sounds.init();
+            sounds.muted = !sounds.muted;
+            soundBtn.textContent = sounds.muted ? '🔇' : '🔊';
+        });
+
+        initCloudsAndStars();
+        bird.reset(logicalHeight);
+        drawPreview();
+        requestAnimationFrame(gameLoop);
+    </script>
+</body>
+</html>
